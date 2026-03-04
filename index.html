@@ -66,6 +66,58 @@
     }
     .copy-btn:hover { opacity: 1 !important; }
 
+    /* 终端预览：固定高度 + 更强对话区分 */
+    #terminal { scrollbar-gutter: stable; }
+    .no-scrollbar {
+      -ms-overflow-style: none; /* IE/Edge */
+      scrollbar-width: none; /* Firefox */
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+    .term-msg {
+      margin: 10px 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .term-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.85;
+      margin-bottom: 6px;
+    }
+    .term-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .term-placeholder {
+      color: #86efac;
+      font-weight: 600;
+    }
+
+    .term-user {
+      border-color: rgba(59, 130, 246, 0.25);
+      background: rgba(59, 130, 246, 0.12);
+    }
+    .term-user .term-label { color: rgba(147, 197, 253, 0.95); }
+    .term-user .term-text { color: rgba(219, 234, 254, 0.96); }
+
+    .term-assistant {
+      border-color: rgba(255, 255, 255, 0.10);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .term-assistant .term-label { color: rgba(255, 255, 255, 0.62); }
+    .term-assistant .term-text { color: rgba(229, 231, 235, 0.92); }
+
+    .term-system {
+      border-color: rgba(245, 158, 11, 0.26);
+      background: rgba(245, 158, 11, 0.10);
+    }
+    .term-system .term-label { color: rgba(245, 158, 11, 0.92); }
+    .term-system .term-text { color: rgba(253, 230, 138, 0.96); font-size: 12px; opacity: 0.95; }
+
     /* Smooth scroll */
     html { scroll-behavior: smooth; }
 
@@ -194,7 +246,7 @@
           <span class="ml-2 text-xs text-white/50 font-mono">Claude Code &mdash; VibeGuard Protected</span>
         </div>
         <!-- Terminal content -->
-        <div id="terminal" class="px-5 py-4 font-mono text-[13px] leading-relaxed min-h-[200px]">
+        <div id="terminal" class="px-5 py-4 font-mono text-[13px] leading-relaxed h-[320px] sm:h-[360px] overflow-y-auto no-scrollbar">
           <div class="cursor-blink text-white"></div>
         </div>
       </div>
@@ -647,78 +699,148 @@
     // ========== Terminal Animation ==========
     (function() {
       var terminal = document.getElementById('terminal');
-      var lines = [
-        { text: '> Hi I\'m Samuel Porter. My email is Samuel@gmail.com.', cls: 'text-blue-300', delay: 800 },
-        { text: '  Pls paraphrase my first name and my email without the suffix', cls: 'text-blue-300', delay: 600 },
-        { text: '', cls: '', delay: 400 },
-        { text: '\u2713 2 sensitive patterns redacted in request', cls: 'text-yellow-400 text-xs opacity-70', delay: 700 },
-        { text: '', cls: '', delay: 300 },
-        { text: 'It looks like your name and email have been redacted by', cls: 'text-gray-300', delay: 600 },
-        { text: 'VibeGuard\'s PII protection \u2014 I\'m only seeing', cls: 'text-gray-300', delay: 500 },
-        { text: '__VG_placeholders (Samuel Porter \u2192 __VG_name_a3f1 and', cls: 'text-green-400', delay: 600 },
-        { text: 'Samuel@gmail.com \u2192 __VG_email_9d2e) instead of the', cls: 'text-green-400', delay: 600 },
-        { text: 'actual values. So I can\'t paraphrase what I can\'t see!', cls: 'text-gray-300', delay: 500 },
-        { text: '', cls: '', delay: 300 },
-        { text: '\u2713 Response restored successfully', cls: 'text-green-400 text-xs opacity-70', delay: 600 },
-      ];
+      if (!terminal) return;
 
       var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-      function renderAll() {
-        while (terminal.firstChild) {
-          terminal.removeChild(terminal.firstChild);
-        }
-        lines.forEach(function(line) {
-          if (line.text === '') {
-            terminal.appendChild(document.createElement('br'));
-          } else {
-            var div = document.createElement('div');
-            div.className = line.cls;
-            div.textContent = line.text;
-            terminal.appendChild(div);
-          }
-        });
+      function scrollToBottom() {
+        // 固定高度下，让最新输出始终可见
+        terminal.scrollTop = terminal.scrollHeight;
       }
 
-      function animateLines() {
-        while (terminal.firstChild) {
-          terminal.removeChild(terminal.firstChild);
+      var messages = [
+        {
+          role: 'user',
+          label: 'YOU',
+          text:
+            "Hi I'm Samuel Porter. My email is Samuel@gmail.com.\n" +
+            "Pls paraphrase my first name and my email without the suffix.",
+          delay: 800,
+          typewriter: true
+        },
+        {
+          role: 'system',
+          label: 'VIBEGUARD',
+          text: '\u2713 2 sensitive patterns redacted in request',
+          delay: 700
+        },
+        {
+          role: 'assistant',
+          label: 'ASSISTANT',
+          text:
+            "It looks like your name and email have been redacted by VibeGuard's PII protection — I'm only seeing\n" +
+            "__VG_placeholders (Samuel Porter → __VG_name_a3f1 and Samuel@gmail.com → __VG_email_9d2e)\n" +
+            "instead of the actual values. So I can't paraphrase what I can't see!",
+          delay: 900
+        },
+        {
+          role: 'system',
+          label: 'VIBEGUARD',
+          text: '\u2713 Response restored successfully',
+          delay: 650
         }
+      ];
+
+      function clear() {
+        while (terminal.firstChild) terminal.removeChild(terminal.firstChild);
+      }
+
+      function appendWithHighlights(parent, text) {
+        // 将 __VG_* 高亮为“脱敏占位符”
+        var re = /__VG_[A-Za-z0-9_]+/g;
+        var last = 0;
+        var m;
+        while ((m = re.exec(text)) !== null) {
+          if (m.index > last) {
+            parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+          }
+          var span = document.createElement('span');
+          span.className = 'term-placeholder';
+          span.textContent = m[0];
+          parent.appendChild(span);
+          last = m.index + m[0].length;
+        }
+        if (last < text.length) {
+          parent.appendChild(document.createTextNode(text.slice(last)));
+        }
+      }
+
+      function roleClass(role) {
+        if (role === 'user') return 'term-user';
+        if (role === 'system') return 'term-system';
+        return 'term-assistant';
+      }
+
+      function createMessageEl(msg) {
+        var div = document.createElement('div');
+        div.className = 'term-msg ' + roleClass(msg.role);
+
+        var label = document.createElement('div');
+        label.className = 'term-label';
+        label.textContent = msg.label || '';
+
+        var text = document.createElement('div');
+        text.className = 'term-text';
+        appendWithHighlights(text, msg.text || '');
+
+        div.appendChild(label);
+        div.appendChild(text);
+        return div;
+      }
+
+      function appendCursor() {
+        var cursor = document.createElement('div');
+        cursor.className = 'cursor-blink text-white';
+        terminal.appendChild(cursor);
+      }
+
+      function renderAll() {
+        clear();
+        messages.forEach(function(msg) {
+          terminal.appendChild(createMessageEl(msg));
+        });
+        appendCursor();
+        scrollToBottom();
+      }
+
+      function animateMessages() {
+        clear();
         var i = 0;
         function next() {
-          if (i >= lines.length) {
-            var cursor = document.createElement('div');
-            cursor.className = 'cursor-blink text-white';
-            terminal.appendChild(cursor);
+          if (i >= messages.length) {
+            appendCursor();
+            scrollToBottom();
             return;
           }
-          var line = lines[i];
-          if (line.text === '') {
-            terminal.appendChild(document.createElement('br'));
-            i++;
-            setTimeout(next, line.delay);
-          } else {
-            var div = document.createElement('div');
-            div.className = line.cls;
-            terminal.appendChild(div);
-            // Typewriter for user input lines, instant for AI response
-            if (line.text.startsWith('>')) {
-              var charIdx = 0;
-              var typeInterval = setInterval(function() {
-                charIdx++;
-                div.textContent = line.text.slice(0, charIdx);
-                if (charIdx >= line.text.length) {
-                  clearInterval(typeInterval);
-                  i++;
-                  setTimeout(next, line.delay);
-                }
-              }, 25);
-            } else {
-              div.textContent = line.text;
-              i++;
-              setTimeout(next, line.delay);
-            }
+
+          var msg = messages[i];
+          var el = createMessageEl(msg);
+          terminal.appendChild(el);
+          scrollToBottom();
+
+          if (msg.typewriter) {
+            // 打字机效果先逐字渲染纯文本，完成后再替换成带高亮的版本
+            var textEl = el.querySelector('.term-text');
+            var full = msg.text || '';
+            textEl.textContent = '';
+            var idx = 0;
+            var timer = setInterval(function() {
+              idx++;
+              textEl.textContent = full.slice(0, idx);
+              scrollToBottom();
+              if (idx >= full.length) {
+                clearInterval(timer);
+                textEl.textContent = '';
+                appendWithHighlights(textEl, full);
+                i++;
+                setTimeout(next, msg.delay || 600);
+              }
+            }, 18);
+            return;
           }
+
+          i++;
+          setTimeout(next, msg.delay || 600);
         }
         next();
       }
@@ -729,7 +851,7 @@
         var observer = new IntersectionObserver(function(entries) {
           entries.forEach(function(entry) {
             if (entry.isIntersecting) {
-              animateLines();
+              animateMessages();
               observer.unobserve(entry.target);
             }
           });
