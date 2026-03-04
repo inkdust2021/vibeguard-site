@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibeGuard - Protect Your AI Coding Privacy</title>
+  <meta name="description" content="VibeGuard is an open-source MITM HTTPS proxy that protects sensitive data when using AI coding assistants.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            'primary-dark': '#1e3a5f',
+            'bg-alt': '#f0f7ff',
+            'card-bg': '#f8fbff',
+            'code-bg': '#f0f5fc',
+            'border-light': '#e0ecf9',
+            'text-main': '#1e293b',
+            'text-sub': '#64748b',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; }
+    code, .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Scroll animations */
+    .fade-in-up {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+    .fade-in-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Feature card hover */
+    .feature-card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(59, 130, 246, 0.10);
+    }
+
+    /* Terminal cursor blink */
+    .cursor-blink::after {
+      content: '\2588';
+      animation: blink 1s step-end infinite;
+      color: #3b82f6;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* Code copy button */
+    .copy-btn {
+      transition: opacity 0.2s;
+    }
+    .copy-btn:hover { opacity: 1 !important; }
+
+    /* Smooth scroll */
+    html { scroll-behavior: smooth; }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in-up { opacity: 1; transform: none; transition: none; }
+      .cursor-blink::after { animation: none; }
+      html { scroll-behavior: auto; }
+      .feature-card { transition: none; }
+      .feature-card:hover { transform: none; }
+    }
+
+    /* Flow arrow animation */
+    .flow-arrow {
+      animation: pulse-arrow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-arrow {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .flow-arrow { animation: none; opacity: 0.8; }
+    }
+
+    /* Language toggle */
+    [data-i18n$=".zh"] { display: none; }
+    body.lang-zh [data-i18n$=".en"] { display: none; }
+    body.lang-zh [data-i18n$=".zh"] { display: unset; }
+
+    /* Before/after code highlights */
+    .hl-danger { color: #ef4444; font-weight: 600; }
+    .hl-safe { color: #16a34a; font-weight: 600; }
+  </style>
+</head>
+<body class="bg-white">
+
+  <!-- Navigation -->
+  <header id="nav" class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-border-light">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <!-- Logo -->
+      <a href="#" class="flex items-center shrink-0">
+        <img src="logo.jpg" alt="VibeGuard" class="h-9 object-contain">
+      </a>
+      <!-- Nav links (desktop) -->
+      <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-text-sub">
+        <a href="#features" class="hover:text-primary transition-colors">
+          <span data-i18n="nav.features.en">Features</span>
+          <span data-i18n="nav.features.zh">特性</span>
+        </a>
+        <a href="#how-it-works" class="hover:text-primary transition-colors">
+          <span data-i18n="nav.how.en">How It Works</span>
+          <span data-i18n="nav.how.zh">原理</span>
+        </a>
+        <a href="#quickstart" class="hover:text-primary transition-colors">
+          <span data-i18n="nav.start.en">Quick Start</span>
+          <span data-i18n="nav.start.zh">快速开始</span>
+        </a>
+      </nav>
+      <!-- Right side -->
+      <div class="flex items-center gap-3">
+        <!-- Language toggle -->
+        <button id="lang-toggle" class="text-xs font-medium px-2.5 py-1.5 rounded-md border border-border-light text-text-sub hover:text-primary hover:border-primary/30 transition-colors">
+          EN | 中
+        </button>
+        <!-- GitHub -->
+        <a href="https://github.com/inkdust2021/VibeGuard" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border border-border-light text-text-sub hover:text-primary hover:border-primary/30 transition-colors">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span class="hidden sm:inline">GitHub</span>
+        </a>
+        <!-- Mobile menu button -->
+        <button id="mobile-menu-btn" class="md:hidden p-1.5 rounded-md hover:bg-bg-alt transition-colors">
+          <svg class="w-5 h-5 text-text-sub" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- Mobile menu -->
+    <div id="mobile-menu" class="hidden md:hidden border-t border-border-light bg-white px-4 pb-3">
+      <a href="#features" class="block py-2 text-sm text-text-sub hover:text-primary">
+        <span data-i18n="nav.features.en">Features</span><span data-i18n="nav.features.zh">特性</span>
+      </a>
+      <a href="#how-it-works" class="block py-2 text-sm text-text-sub hover:text-primary">
+        <span data-i18n="nav.how.en">How It Works</span><span data-i18n="nav.how.zh">原理</span>
+      </a>
+      <a href="#quickstart" class="block py-2 text-sm text-text-sub hover:text-primary">
+        <span data-i18n="nav.start.en">Quick Start</span><span data-i18n="nav.start.zh">快速开始</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="pt-28 pb-16 sm:pt-36 sm:pb-24 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-primary-dark leading-tight">
+        <span data-i18n="hero.title.en">Protect Your AI Coding Privacy</span>
+        <span data-i18n="hero.title.zh">守护你的 AI 编程隐私</span>
+      </h1>
+      <p class="mt-6 text-lg sm:text-xl text-text-sub max-w-2xl mx-auto leading-relaxed">
+        <span data-i18n="hero.sub.en">An open-source MITM proxy that automatically redacts sensitive data from your AI coding assistant requests — and restores them in responses.</span>
+        <span data-i18n="hero.sub.zh">一个开源 MITM 代理，自动脱敏 AI 编程助手请求中的敏感数据，并在响应中还原。</span>
+      </p>
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a href="#quickstart"
+           class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-white font-medium text-sm shadow-md shadow-primary/20 hover:bg-blue-600 transition-colors">
+          <span data-i18n="hero.cta1.en">Get Started</span>
+          <span data-i18n="hero.cta1.zh">快速开始</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </a>
+        <a href="https://github.com/inkdust2021/VibeGuard" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border-light text-text-main font-medium text-sm hover:border-primary/40 hover:text-primary transition-colors">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span data-i18n="hero.cta2.en">View on GitHub</span>
+          <span data-i18n="hero.cta2.zh">GitHub 仓库</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Terminal Preview -->
+    <div class="max-w-3xl mx-auto mt-12 fade-in-up">
+      <div class="rounded-xl border border-border-light bg-[#1a1b26] shadow-xl overflow-hidden">
+        <!-- Terminal title bar -->
+        <div class="flex items-center gap-2 px-4 py-2.5 bg-black/30">
+          <span class="w-3 h-3 rounded-full bg-red-400"></span>
+          <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+          <span class="w-3 h-3 rounded-full bg-green-400"></span>
+          <span class="ml-2 text-xs text-white/50 font-mono">Claude Code &mdash; VibeGuard Protected</span>
+        </div>
+        <!-- Terminal content -->
+        <div id="terminal" class="px-5 py-4 font-mono text-[13px] leading-relaxed min-h-[200px]">
+          <div class="cursor-blink text-white"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="py-16 sm:py-24 bg-bg-alt px-4">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-12 fade-in-up">
+        <h2 class="text-3xl sm:text-4xl font-bold text-primary-dark">
+          <span data-i18n="features.title.en">Why VibeGuard?</span>
+          <span data-i18n="features.title.zh">为什么选择 VibeGuard？</span>
+        </h2>
+        <p class="mt-3 text-text-sub max-w-xl mx-auto">
+          <span data-i18n="features.sub.en">Built for developers who care about privacy without sacrificing productivity.</span>
+          <span data-i18n="features.sub.zh">为重视隐私又不想牺牲效率的开发者而生。</span>
+        </p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <!-- Feature 1: Zero Config -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f1.title.en">Zero Config</span>
+            <span data-i18n="f1.title.zh">零配置</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f1.desc.en">Works out of the box with sensible defaults. Install and run — no YAML editing required.</span>
+            <span data-i18n="f1.desc.zh">开箱即用，合理的默认配置。安装即运行，无需手动编辑配置文件。</span>
+          </p>
+        </div>
+
+        <!-- Feature 2: Process-Level Proxy -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f2.title.en">Process-Level Proxy</span>
+            <span data-i18n="f2.title.zh">进程级代理</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f2.desc.en">Only intercepts traffic from targeted processes. Your system network stays untouched.</span>
+            <span data-i18n="f2.desc.zh">仅代理目标进程流量，不影响系统网络。</span>
+          </p>
+        </div>
+
+        <!-- Feature 3: Hot Reload -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f3.title.en">Hot Reload Rules</span>
+            <span data-i18n="f3.title.zh">热重载规则</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f3.desc.en">Edit rules via the admin UI — changes apply instantly without restarting the proxy.</span>
+            <span data-i18n="f3.desc.zh">通过管理面板修改规则，无需重启即可生效。</span>
+          </p>
+        </div>
+
+        <!-- Feature 4: Encrypted Storage -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f4.title.en">Encrypted Storage</span>
+            <span data-i18n="f4.title.zh">加密存储</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f4.desc.en">Keywords and placeholder mappings are encrypted at rest using your local CA key.</span>
+            <span data-i18n="f4.desc.zh">关键词和映射使用本地 CA 密钥加密存储。</span>
+          </p>
+        </div>
+
+        <!-- Feature 5: Multi-Layer Detection -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f5.title.en">Multi-Layer Detection</span>
+            <span data-i18n="f5.title.zh">多层检测</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f5.desc.en">Rule lists + keyword matching + regex + optional NER — layered detection for maximum coverage.</span>
+            <span data-i18n="f5.desc.zh">规则列表 + 关键词 + 正则 + 可选 NER，多层识别全面覆盖。</span>
+          </p>
+        </div>
+
+        <!-- Feature 6: Admin Dashboard -->
+        <div class="feature-card fade-in-up bg-white rounded-xl border border-border-light p-6">
+          <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </div>
+          <h3 class="text-base font-semibold text-text-main">
+            <span data-i18n="f6.title.en">Admin Dashboard</span>
+            <span data-i18n="f6.title.zh">管理面板</span>
+          </h3>
+          <p class="mt-2 text-sm text-text-sub leading-relaxed">
+            <span data-i18n="f6.desc.en">Real-time audit log, visual analytics, rule management — all from your browser.</span>
+            <span data-i18n="f6.desc.zh">实时审计日志、可视化分析、规则管理 — 尽在浏览器中。</span>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="py-16 sm:py-24 px-4">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-14 fade-in-up">
+        <h2 class="text-3xl sm:text-4xl font-bold text-primary-dark">
+          <span data-i18n="how.title.en">How It Works</span>
+          <span data-i18n="how.title.zh">工作原理</span>
+        </h2>
+        <p class="mt-3 text-text-sub max-w-xl mx-auto">
+          <span data-i18n="how.sub.en">VibeGuard sits between your IDE and the AI API, transparently redacting and restoring data.</span>
+          <span data-i18n="how.sub.zh">VibeGuard 介于 IDE 和 AI API 之间，透明地脱敏和还原数据。</span>
+        </p>
+      </div>
+
+      <!-- Flow Diagram -->
+      <div class="fade-in-up">
+        <!-- Desktop flow (horizontal) -->
+        <div class="hidden md:flex items-center justify-center gap-3 mb-12">
+          <!-- IDE box -->
+          <div class="flex-shrink-0 px-5 py-3 rounded-lg border-2 border-primary/30 bg-blue-50 text-center">
+            <div class="text-xs text-text-sub mb-0.5">
+              <span data-i18n="flow.ide.label.en">Your IDE / CLI</span>
+              <span data-i18n="flow.ide.label.zh">你的 IDE / CLI</span>
+            </div>
+            <div class="font-semibold text-primary-dark text-sm">Claude / Cursor / Codex</div>
+          </div>
+          <!-- Arrow right -->
+          <div class="flex flex-col items-center">
+            <span class="text-[11px] text-text-sub mb-1">
+              <span data-i18n="flow.req.en">request</span>
+              <span data-i18n="flow.req.zh">请求</span>
+            </span>
+            <svg class="w-8 h-4 text-primary flow-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 12"><path stroke-linecap="round" stroke-linejoin="round" d="M2 6h18m-4-4l4 4-4 4"/></svg>
+          </div>
+          <!-- VibeGuard box -->
+          <div class="flex-shrink-0 px-5 py-3 rounded-lg border-2 border-primary bg-primary/5 text-center relative">
+            <div class="text-xs text-primary font-medium mb-0.5">VibeGuard Proxy</div>
+            <div class="text-[11px] text-text-sub">
+              <span data-i18n="flow.vg.en">redact &#8596; restore</span>
+              <span data-i18n="flow.vg.zh">脱敏 &#8596; 还原</span>
+            </div>
+            <div class="absolute -bottom-7 left-1/2 -translate-x-1/2 text-[10px] text-primary font-mono whitespace-nowrap">
+              secret_key &#8594; __VG_a3f1
+            </div>
+          </div>
+          <!-- Arrow right -->
+          <div class="flex flex-col items-center">
+            <span class="text-[11px] text-text-sub mb-1">
+              <span data-i18n="flow.safe.en">safe request</span>
+              <span data-i18n="flow.safe.zh">安全请求</span>
+            </span>
+            <svg class="w-8 h-4 text-primary flow-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 12"><path stroke-linecap="round" stroke-linejoin="round" d="M2 6h18m-4-4l4 4-4 4"/></svg>
+          </div>
+          <!-- AI API box -->
+          <div class="flex-shrink-0 px-5 py-3 rounded-lg border-2 border-primary/30 bg-blue-50 text-center">
+            <div class="text-xs text-text-sub mb-0.5">AI API</div>
+            <div class="font-semibold text-primary-dark text-sm">Claude / GPT / Gemini</div>
+          </div>
+        </div>
+
+        <!-- Mobile flow (vertical) -->
+        <div class="flex md:hidden flex-col items-center gap-2 mb-10">
+          <div class="w-full max-w-xs px-5 py-3 rounded-lg border-2 border-primary/30 bg-blue-50 text-center">
+            <div class="text-xs text-text-sub">
+              <span data-i18n="flow.ide.label.en">Your IDE / CLI</span>
+              <span data-i18n="flow.ide.label.zh">你的 IDE / CLI</span>
+            </div>
+            <div class="font-semibold text-primary-dark text-sm">Claude / Cursor / Codex</div>
+          </div>
+          <svg class="w-4 h-8 text-primary flow-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 12 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 2v18m-4-4l4 4 4-4"/></svg>
+          <div class="w-full max-w-xs px-5 py-3 rounded-lg border-2 border-primary bg-primary/5 text-center">
+            <div class="text-xs text-primary font-medium">VibeGuard Proxy</div>
+            <div class="text-[11px] text-text-sub">
+              <span data-i18n="flow.vg.en">redact &#8596; restore</span>
+              <span data-i18n="flow.vg.zh">脱敏 &#8596; 还原</span>
+            </div>
+            <div class="text-[10px] text-primary font-mono mt-1">secret_key &#8594; __VG_a3f1</div>
+          </div>
+          <svg class="w-4 h-8 text-primary flow-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 12 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 2v18m-4-4l4 4 4-4"/></svg>
+          <div class="w-full max-w-xs px-5 py-3 rounded-lg border-2 border-primary/30 bg-blue-50 text-center">
+            <div class="text-xs text-text-sub">AI API</div>
+            <div class="font-semibold text-primary-dark text-sm">Claude / GPT / Gemini</div>
+          </div>
+        </div>
+
+        <!-- Before/After code comparison -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 fade-in-up">
+          <!-- Before -->
+          <div class="rounded-xl border border-border-light overflow-hidden">
+            <div class="px-4 py-2 bg-red-50 border-b border-border-light text-xs font-medium text-red-600 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span data-i18n="how.before.en">Before — Original Request</span>
+              <span data-i18n="how.before.zh">脱敏前 — 原始请求</span>
+            </div>
+            <div class="px-4 py-3 text-xs font-mono leading-relaxed bg-code-bg overflow-x-auto">
+              <div>{</div>
+              <div>  "prompt": "Fix the bug in <span class="hl-danger">ProjectAlpha</span></div>
+              <div>    using API key <span class="hl-danger">sk-4f9a...x7z2</span></div>
+              <div>    on server <span class="hl-danger">192.168.1.100</span>"</div>
+              <div>}</div>
+            </div>
+          </div>
+          <!-- After -->
+          <div class="rounded-xl border border-border-light overflow-hidden">
+            <div class="px-4 py-2 bg-green-50 border-b border-border-light text-xs font-medium text-green-600 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span data-i18n="how.after.en">After — Redacted Request</span>
+              <span data-i18n="how.after.zh">脱敏后 — 安全请求</span>
+            </div>
+            <div class="px-4 py-3 text-xs font-mono leading-relaxed bg-code-bg overflow-x-auto">
+              <div>{</div>
+              <div>  "prompt": "Fix the bug in <span class="hl-safe">__VG_proj_a3f1</span></div>
+              <div>    using API key <span class="hl-safe">__VG_key_9d2e</span></div>
+              <div>    on server <span class="hl-safe">__VG_ip_7bc4</span>"</div>
+              <div>}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start -->
+  <section id="quickstart" class="py-16 sm:py-24 bg-bg-alt px-4">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-12 fade-in-up">
+        <h2 class="text-3xl sm:text-4xl font-bold text-primary-dark">
+          <span data-i18n="qs.title.en">Get Started in 3 Steps</span>
+          <span data-i18n="qs.title.zh">3 步上手</span>
+        </h2>
+      </div>
+
+      <div class="space-y-6">
+        <!-- Step 1 -->
+        <div class="fade-in-up bg-white rounded-xl border border-border-light p-5 sm:p-6">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center mt-0.5">1</div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-text-main">
+                <span data-i18n="qs.s1.title.en">Install</span>
+                <span data-i18n="qs.s1.title.zh">安装</span>
+              </h3>
+              <p class="text-sm text-text-sub mt-1">
+                <span data-i18n="qs.s1.desc.en">One-line install for macOS and Linux.</span>
+                <span data-i18n="qs.s1.desc.zh">macOS 和 Linux 一行命令安装。</span>
+              </p>
+              <div class="mt-3 relative group">
+                <pre class="bg-code-bg rounded-lg px-4 py-3 text-xs sm:text-sm font-mono overflow-x-auto border border-border-light"><code id="code-step1">curl -fsSL https://vibeguard.top/install | bash</code></pre>
+                <button onclick="copyCode('code-step1', this)" class="copy-btn absolute top-2 right-2 p-1.5 rounded-md bg-white/80 border border-border-light opacity-0 group-hover:opacity-70 text-text-sub hover:text-primary" title="Copy">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="fade-in-up bg-white rounded-xl border border-border-light p-5 sm:p-6">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center mt-0.5">2</div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-text-main">
+                <span data-i18n="qs.s2.title.en">Start &amp; Trust</span>
+                <span data-i18n="qs.s2.title.zh">启动 &amp; 信任证书</span>
+              </h3>
+              <p class="text-sm text-text-sub mt-1">
+                <span data-i18n="qs.s2.desc.en">Start the proxy and trust the local CA certificate.</span>
+                <span data-i18n="qs.s2.desc.zh">启动代理并信任本地 CA 证书。</span>
+              </p>
+              <div class="mt-3 relative group">
+                <pre class="bg-code-bg rounded-lg px-4 py-3 text-xs sm:text-sm font-mono overflow-x-auto border border-border-light"><code id="code-step2">vibeguard start &amp;&amp; vibeguard trust</code></pre>
+                <button onclick="copyCode('code-step2', this)" class="copy-btn absolute top-2 right-2 p-1.5 rounded-md bg-white/80 border border-border-light opacity-0 group-hover:opacity-70 text-text-sub hover:text-primary" title="Copy">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="fade-in-up bg-white rounded-xl border border-border-light p-5 sm:p-6">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-white text-sm font-bold flex items-center justify-center mt-0.5">3</div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-text-main">
+                <span data-i18n="qs.s3.title.en">Use</span>
+                <span data-i18n="qs.s3.title.zh">使用</span>
+              </h3>
+              <p class="text-sm text-text-sub mt-1">
+                <span data-i18n="qs.s3.desc.en">Launch your AI tool through VibeGuard's process launcher.</span>
+                <span data-i18n="qs.s3.desc.zh">通过 VibeGuard 进程启动器运行你的 AI 工具。</span>
+              </p>
+              <div class="mt-3 relative group">
+                <pre class="bg-code-bg rounded-lg px-4 py-3 text-xs sm:text-sm font-mono overflow-x-auto border border-border-light"><code id="code-step3">vibeguard claude          # or: vibeguard run cursor</code></pre>
+                <button onclick="copyCode('code-step3', this)" class="copy-btn absolute top-2 right-2 p-1.5 rounded-md bg-white/80 border border-border-light opacity-0 group-hover:opacity-70 text-text-sub hover:text-primary" title="Copy">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-border-light py-10 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="logo.png" alt="VibeGuard" class="h-6 w-6 object-contain">
+        <span class="text-sm font-semibold text-primary-dark">VibeGuard</span>
+        <span class="text-xs text-text-sub ml-1">
+          <span data-i18n="footer.desc.en">— Open-source AI privacy proxy</span>
+          <span data-i18n="footer.desc.zh">— 开源 AI 隐私代理</span>
+        </span>
+      </div>
+      <div class="flex items-center gap-5 text-sm text-text-sub">
+        <a href="https://github.com/inkdust2021/VibeGuard" target="_blank" rel="noopener" class="hover:text-primary transition-colors">GitHub</a>
+        <a href="https://github.com/inkdust2021/VibeGuard/blob/main/docs/README.md" target="_blank" rel="noopener" class="hover:text-primary transition-colors">
+          <span data-i18n="footer.docs.en">Docs</span>
+          <span data-i18n="footer.docs.zh">文档</span>
+        </a>
+        <a href="https://github.com/inkdust2021/VibeGuard/blob/main/LICENSE" target="_blank" rel="noopener" class="hover:text-primary transition-colors">MIT License</a>
+      </div>
+      <div class="text-xs text-text-sub">
+        Made with &#10084;&#65039; by VibeGuard Contributors
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    // ========== Language Toggle ==========
+    (function() {
+      var STORAGE_KEY = 'vg-lang';
+      var body = document.body;
+      var btn = document.getElementById('lang-toggle');
+
+      function setLang(lang) {
+        if (lang === 'zh') {
+          body.classList.add('lang-zh');
+        } else {
+          body.classList.remove('lang-zh');
+        }
+        localStorage.setItem(STORAGE_KEY, lang);
+      }
+
+      // Initialize: check stored preference, then browser language
+      var stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setLang(stored);
+      } else if (navigator.language && navigator.language.startsWith('zh')) {
+        setLang('zh');
+      }
+
+      btn.addEventListener('click', function() {
+        var isZh = body.classList.contains('lang-zh');
+        setLang(isZh ? 'en' : 'zh');
+      });
+    })();
+
+    // ========== Mobile Menu ==========
+    (function() {
+      var btn = document.getElementById('mobile-menu-btn');
+      var menu = document.getElementById('mobile-menu');
+      btn.addEventListener('click', function() {
+        menu.classList.toggle('hidden');
+      });
+      // Close on link click
+      menu.querySelectorAll('a').forEach(function(a) {
+        a.addEventListener('click', function() { menu.classList.add('hidden'); });
+      });
+    })();
+
+    // ========== Scroll Animations ==========
+    (function() {
+      var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      if (mq.matches) {
+        document.querySelectorAll('.fade-in-up').forEach(function(el) {
+          el.classList.add('visible');
+        });
+        return;
+      }
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('.fade-in-up').forEach(function(el) {
+        observer.observe(el);
+      });
+    })();
+
+    // ========== Terminal Animation ==========
+    (function() {
+      var terminal = document.getElementById('terminal');
+      var lines = [
+        { text: '> Hi I\'m Samuel Porter. My email is Samuel@gmail.com.', cls: 'text-blue-300', delay: 800 },
+        { text: '  Pls paraphrase my first name and my email without the suffix', cls: 'text-blue-300', delay: 600 },
+        { text: '', cls: '', delay: 400 },
+        { text: '\u2713 2 sensitive patterns redacted in request', cls: 'text-yellow-400 text-xs opacity-70', delay: 700 },
+        { text: '', cls: '', delay: 300 },
+        { text: 'It looks like your name and email have been redacted by', cls: 'text-gray-300', delay: 600 },
+        { text: 'VibeGuard\'s PII protection \u2014 I\'m only seeing', cls: 'text-gray-300', delay: 500 },
+        { text: '__VG_placeholders (Samuel Porter \u2192 __VG_name_a3f1 and', cls: 'text-green-400', delay: 600 },
+        { text: 'Samuel@gmail.com \u2192 __VG_email_9d2e) instead of the', cls: 'text-green-400', delay: 600 },
+        { text: 'actual values. So I can\'t paraphrase what I can\'t see!', cls: 'text-gray-300', delay: 500 },
+        { text: '', cls: '', delay: 300 },
+        { text: '\u2713 Response restored successfully', cls: 'text-green-400 text-xs opacity-70', delay: 600 },
+      ];
+
+      var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      function renderAll() {
+        while (terminal.firstChild) {
+          terminal.removeChild(terminal.firstChild);
+        }
+        lines.forEach(function(line) {
+          if (line.text === '') {
+            terminal.appendChild(document.createElement('br'));
+          } else {
+            var div = document.createElement('div');
+            div.className = line.cls;
+            div.textContent = line.text;
+            terminal.appendChild(div);
+          }
+        });
+      }
+
+      function animateLines() {
+        while (terminal.firstChild) {
+          terminal.removeChild(terminal.firstChild);
+        }
+        var i = 0;
+        function next() {
+          if (i >= lines.length) {
+            var cursor = document.createElement('div');
+            cursor.className = 'cursor-blink text-white';
+            terminal.appendChild(cursor);
+            return;
+          }
+          var line = lines[i];
+          if (line.text === '') {
+            terminal.appendChild(document.createElement('br'));
+            i++;
+            setTimeout(next, line.delay);
+          } else {
+            var div = document.createElement('div');
+            div.className = line.cls;
+            terminal.appendChild(div);
+            // Typewriter for user input lines, instant for AI response
+            if (line.text.startsWith('>')) {
+              var charIdx = 0;
+              var typeInterval = setInterval(function() {
+                charIdx++;
+                div.textContent = line.text.slice(0, charIdx);
+                if (charIdx >= line.text.length) {
+                  clearInterval(typeInterval);
+                  i++;
+                  setTimeout(next, line.delay);
+                }
+              }, 25);
+            } else {
+              div.textContent = line.text;
+              i++;
+              setTimeout(next, line.delay);
+            }
+          }
+        }
+        next();
+      }
+
+      if (mq.matches) {
+        renderAll();
+      } else {
+        var observer = new IntersectionObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+              animateLines();
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.3 });
+        observer.observe(terminal.parentElement);
+      }
+    })();
+
+    // ========== Copy Code ==========
+    function copyCode(codeId, btn) {
+      var codeEl = document.getElementById(codeId);
+      if (!codeEl) return;
+      var text = codeEl.textContent;
+      navigator.clipboard.writeText(text).then(function() {
+        // Show checkmark by swapping SVG via safe DOM
+        var oldSvg = btn.querySelector('svg');
+        if (!oldSvg) return;
+        var newSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        newSvg.setAttribute('class', 'w-4 h-4 text-green-500');
+        newSvg.setAttribute('fill', 'none');
+        newSvg.setAttribute('stroke', 'currentColor');
+        newSvg.setAttribute('stroke-width', '2');
+        newSvg.setAttribute('viewBox', '0 0 24 24');
+        var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('d', 'M5 13l4 4L19 7');
+        newSvg.appendChild(path);
+        btn.replaceChild(newSvg, oldSvg);
+        setTimeout(function() {
+          // Restore copy icon
+          var restoreSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          restoreSvg.setAttribute('class', 'w-4 h-4');
+          restoreSvg.setAttribute('fill', 'none');
+          restoreSvg.setAttribute('stroke', 'currentColor');
+          restoreSvg.setAttribute('stroke-width', '2');
+          restoreSvg.setAttribute('viewBox', '0 0 24 24');
+          var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', '9');
+          rect.setAttribute('y', '9');
+          rect.setAttribute('width', '13');
+          rect.setAttribute('height', '13');
+          rect.setAttribute('rx', '2');
+          var p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p2.setAttribute('d', 'M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1');
+          restoreSvg.appendChild(rect);
+          restoreSvg.appendChild(p2);
+          var current = btn.querySelector('svg');
+          if (current) btn.replaceChild(restoreSvg, current);
+        }, 1500);
+      });
+    }
+
+    // ========== Navbar scroll shadow ==========
+    (function() {
+      var nav = document.getElementById('nav');
+      window.addEventListener('scroll', function() {
+        if (window.scrollY > 10) {
+          nav.style.boxShadow = '0 1px 8px rgba(0,0,0,0.06)';
+        } else {
+          nav.style.boxShadow = 'none';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
